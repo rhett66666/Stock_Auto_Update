@@ -426,10 +426,18 @@ def main():
     stocks = get_all_taiwan_stocks()
     for symbol, name in stocks.items():
         try:
-            p, m, o = fetch_price_by_volume(symbol), safe_fetch_margin_data(symbol), fetch_ohlc_data(symbol)
+            print(f"\n📈 處理 {symbol} {name}")
+            p = fetch_price_by_volume(symbol)
+            m = safe_fetch_margin_data(symbol)
+            o = fetch_ohlc_data(symbol)
+
+            # 比對日期
             if p['date'] == m['date'] == o['date']:
                 update_excel_cloud(symbol, name, p, m, o)
-                time.sleep(random.uniform(0.8, 1.2)) # 延遲避免封鎖
+                time.sleep(random.uniform(0.8, 1.2))
+            else:
+                print(f"⚠️ {symbol} 日期不一致，跳過更新 (p:{p['date']}, m:{m['date']}, o:{o['date']})")
+                
         except Exception as e:
             print(f"❌ {symbol} 失敗: {e}")
 
