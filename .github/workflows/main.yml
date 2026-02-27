@@ -1,0 +1,21 @@
+name: Stock Auto Update
+on:
+  schedule:
+    - cron: '30 14 * * 1-5' # 台北時間週一至週五 16:30 執行
+  workflow_dispatch: # 也可以手動點擊執行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install pandas requests openpyxl lxml google-api-python-client google-auth-httplib2 google-auth-oauthlib
+      - name: Run script
+        env:
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        run: python main.py
