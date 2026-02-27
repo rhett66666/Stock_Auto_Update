@@ -43,10 +43,9 @@ session.headers.update({
 # === 2. 備份功能 (雲端 API 複製版) ===
 def perform_backup():
     today_str = datetime.now().strftime("%Y%m%d")
-    print(f"📦 準備備份雲端資料至 {today_str}...")
+    print(f"📦 準備備份雲端資料至 {today_str} (改用上傳模式以避開空間限制)...")
 
     # 1. 建立日期子資料夾
-    # 這裡建立資料夾時，它是算在你的資料夾底下的，通常沒問題
     folder_metadata = {
         'name': today_str,
         'mimeType': 'application/vnd.google-apps.folder',
@@ -55,26 +54,40 @@ def perform_backup():
     folder = drive_service.files().create(body=folder_metadata, fields='id').execute()
     new_folder_id = folder.get('id')
 
-    # 2. 搜尋檔案
+    # 2. 搜尋來源檔案
     query = f"'{BASE_DIR_ID}' in parents and name contains '_價量報表.xlsx' and trashed = false"
     results = drive_service.files().list(q=query, fields="files(id, name)").execute()
     files = results.get('files', [])
 
-    # 3. 執行複製
+    # 3. 改用「下載再上傳」的方式備份
+    # 這樣檔案的 Owner 就會是你，而不是 Service Account
     for f in files:
         try:
-            # 修改點：在 body 裡面加入 keepRevisionForever=False 並確保使用 fields 
-            # 實際上最穩的方法是直接 copy，但 403 錯誤通常發生在 Google 認為這個 copy 的 owner 是 Service Account
-            drive_service.files().copy(
-                fileId=f['id'],
-                body={'parents': [new_folder_id]},
-                fields='id'  # 只要求回傳 ID，減少 API 負擔
+            temp_bk_path = os.path.join(LOCAL_TEMP, f"bk_{f['name']}")
+            
+            # A. 下載
+            request = drive_service.files().get_media(fileId=f['id'])
+            with io.FileIO(temp_bk_path, 'wb') as fh:
+                downloader = MediaIoBaseDownload(fh, request)
+                done = False
+                while not done:
+                    _, done = downloader.next_chunk()
+            
+            # B. 上傳到備份資料夾
+            media = MediaFileUpload(temp_bk_path, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            drive_service.files().create(
+                body={'name': f['name'], 'parents': [new_folder_id]},
+                media_body=media
             ).execute()
+            
+            # C. 刪除暫存檔
+            if os.path.exists(temp_bk_path):
+                os.remove(temp_bk_path)
+                
         except Exception as e:
-            print(f"⚠️ 檔案 {f['name']} 複製失敗 (可能因空間限制): {e}")
-            # 如果還是失敗，代表這個 Service Account 真的不能執行 copy 指令
-    
-    print(f"✅ 雲端備份程序結束。")
+            print(f"⚠️ 檔案 {f['name']} 備份失敗: {e}")
+
+    print(f"✅ 雲端備份完成！")
 
 # === 3. 股票抓取功能 ===
 def get_all_taiwan_stocks():
