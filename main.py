@@ -424,7 +424,7 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
 def main():
 #    perform_backup()
     stocks = get_all_taiwan_stocks()
-    for symbol, name in stocks.items():
+    for symbol, name in list(stocks.items()):
         try:
             print(f"\n📈 處理 {symbol} {name}")
             p = fetch_price_by_volume(symbol)
