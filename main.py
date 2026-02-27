@@ -133,15 +133,7 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
 
     # C. 寫入資料 (此處省略你原本那一長串著色邏輯，請直接套用你原本 update_excel 的內容)
     ws = wb.active
-    except FileNotFoundError:
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "價量報表"
-        ws["A1"], ws["B1"] = symbol, name
-        ws["A2"], ws["A3"], ws["A4"], ws["A5"] = "融資", "融資差", "融券", "融券差"
-        ws["A7"], ws["A8"], ws["A9"], ws["A10"] = "開", "高", "低", "收"
-        ws["A12"], ws["B12"] = "成交價", "歷史成交量總和"
-
+    
     # 找出現有日期
     headers = [ws.cell(row=1, column=c).value for c in range(3, ws.max_column + 1)]
     if today not in headers:
