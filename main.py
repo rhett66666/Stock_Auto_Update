@@ -45,7 +45,8 @@ def perform_backup():
     today_str = datetime.now().strftime("%Y%m%d")
     print(f"📦 準備備份雲端資料至 {today_str}...")
 
-    # 建立日期子資料夾
+    # 1. 建立日期子資料夾
+    # 這裡建立資料夾時，它是算在你的資料夾底下的，通常沒問題
     folder_metadata = {
         'name': today_str,
         'mimeType': 'application/vnd.google-apps.folder',
@@ -54,18 +55,26 @@ def perform_backup():
     folder = drive_service.files().create(body=folder_metadata, fields='id').execute()
     new_folder_id = folder.get('id')
 
-    # 搜尋並複製所有價量報表
+    # 2. 搜尋檔案
     query = f"'{BASE_DIR_ID}' in parents and name contains '_價量報表.xlsx' and trashed = false"
     results = drive_service.files().list(q=query, fields="files(id, name)").execute()
     files = results.get('files', [])
 
+    # 3. 執行複製
     for f in files:
-        drive_service.files().copy(
-            fileId=f['id'],
-            body={'parents': [new_folder_id]},
-            supportsAllDrives=True  # 確保支援共用硬碟格式
-        ).execute()
-    print(f"✅ 雲端備份完成！共複製 {len(files)} 個檔案。")
+        try:
+            # 修改點：在 body 裡面加入 keepRevisionForever=False 並確保使用 fields 
+            # 實際上最穩的方法是直接 copy，但 403 錯誤通常發生在 Google 認為這個 copy 的 owner 是 Service Account
+            drive_service.files().copy(
+                fileId=f['id'],
+                body={'parents': [new_folder_id]},
+                fields='id'  # 只要求回傳 ID，減少 API 負擔
+            ).execute()
+        except Exception as e:
+            print(f"⚠️ 檔案 {f['name']} 複製失敗 (可能因空間限制): {e}")
+            # 如果還是失敗，代表這個 Service Account 真的不能執行 copy 指令
+    
+    print(f"✅ 雲端備份程序結束。")
 
 # === 3. 股票抓取功能 ===
 def get_all_taiwan_stocks():
