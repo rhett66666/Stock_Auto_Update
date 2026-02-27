@@ -422,7 +422,7 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
 
 # === 5. 主程式 ===
 def main():
-    perform_backup()
+#    perform_backup()
     stocks = get_all_taiwan_stocks()
     for symbol, name in stocks.items():
         try:
