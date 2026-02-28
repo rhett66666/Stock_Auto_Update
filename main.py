@@ -374,6 +374,7 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
     ws.cell(row=9, column=today_col, value=ohlc_data["低"])
     ws.cell(row=10, column=today_col, value=ohlc_data["收"])
 
+    print("3.5") ############
     existing_prices = {float(ws.cell(row=r, column=1).value): r for r in range(13, ws.max_row + 1) if ws.cell(row=r, column=1).value}
     today_p_list = [p for p, _ in price_data]
     all_prices = sorted(set(existing_prices.keys()) | set(today_p_list), reverse=True)
