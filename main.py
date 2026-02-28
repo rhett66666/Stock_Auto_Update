@@ -443,7 +443,7 @@ def main():
 
             # 比對日期
             if p['date'] == m['date'] == o['date']:
-                update_excel_cloud(symbol, name, p, m, o)
+                update_excel_cloud(symbol, name, p["data"], m, o)
                 time.sleep(random.uniform(0.8, 1.2))
             else:
                 print(f"⚠️ {symbol} 日期不一致，跳過更新 (p:{p['date']}, m:{m['date']}, o:{o['date']})")
