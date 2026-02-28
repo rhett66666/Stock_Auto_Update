@@ -325,12 +325,13 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
     file_name = f"{symbol}_價量報表.xlsx"
     local_path = os.path.join(LOCAL_TEMP, file_name)
     today = margin_data["date"]
-    
+    print("1") ############
     # A. 搜尋雲端是否有舊檔
     query = f"name = '{file_name}' and '{BASE_DIR_ID}' in parents and trashed = false"
     results = drive_service.files().list(q=query, fields="files(id)").execute()
     items = results.get('files', [])
 
+    print("2") ############
     # B. 下載或建立
     if items:
         file_id = items[0]['id']
@@ -352,6 +353,7 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
         ws["A12"], ws["B12"] = "成交價", "歷史成交量總和"
         file_id = None
 
+    print("3") ############
     # C. 寫入與著色邏輯
     headers = [ws.cell(row=1, column=c).value for c in range(3, ws.max_column + 1)]
     if today not in headers:
