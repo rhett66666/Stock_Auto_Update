@@ -390,6 +390,7 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
     for price, vol in price_data:
         ws.cell(row=new_map[price], column=today_col, value=vol)
 
+    print("4") ############
     # 著色邏輯 (簡單版 Heatmap)
     fill_none = PatternFill(fill_type=None)
     fill_top_5 = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
@@ -413,6 +414,7 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
 
     wb.save(local_path)
 
+    print("5") ############
     # D. 上傳回雲端
     media = MediaFileUpload(local_path, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     if file_id:
