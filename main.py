@@ -325,13 +325,12 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
     file_name = f"{symbol}_價量報表.xlsx"
     local_path = os.path.join(LOCAL_TEMP, file_name)
     today = margin_data["date"]
-    print("1") ############
+    
     # A. 搜尋雲端是否有舊檔
     query = f"name = '{file_name}' and '{BASE_DIR_ID}' in parents and trashed = false"
     results = drive_service.files().list(q=query, fields="files(id)").execute()
     items = results.get('files', [])
 
-    print("2") ############
     # B. 下載或建立
     if items:
         file_id = items[0]['id']
@@ -353,7 +352,6 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
         ws["A12"], ws["B12"] = "成交價", "歷史成交量總和"
         file_id = None
 
-    print("3") ############
     # C. 寫入與著色邏輯
     headers = [ws.cell(row=1, column=c).value for c in range(3, ws.max_column + 1)]
     if today not in headers:
@@ -374,12 +372,10 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
     ws.cell(row=9, column=today_col, value=ohlc_data["低"])
     ws.cell(row=10, column=today_col, value=ohlc_data["收"])
 
-    print("3.5") ############
     existing_prices = {float(ws.cell(row=r, column=1).value): r for r in range(13, ws.max_row + 1) if ws.cell(row=r, column=1).value}
     today_p_list = [p for p, _ in price_data]
     all_prices = sorted(set(existing_prices.keys()) | set(today_p_list), reverse=True)
 
-    print("3.6") ############
     new_map = {}
     for i, price in enumerate(all_prices):
         row = i + 13
@@ -392,7 +388,6 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
     for price, vol in price_data:
         ws.cell(row=new_map[price], column=today_col, value=vol)
 
-    print("4") ############
     # 著色邏輯 (簡單版 Heatmap)
     fill_none = PatternFill(fill_type=None)
     fill_top_5 = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
@@ -416,7 +411,6 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
 
     wb.save(local_path)
 
-    print("5") ############
     # D. 上傳回雲端
     media = MediaFileUpload(local_path, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     if file_id:
