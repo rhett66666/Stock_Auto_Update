@@ -432,24 +432,48 @@ def main():
     stocks = get_all_taiwan_stocks()
 #    for symbol, name in list(stocks.items()):
     for symbol, name in list(stocks.items())[:5]:  # 測試先跑前5檔
-        try:
-            print(f"\n📈 處理 {symbol} {name}")
-            p = fetch_price_by_volume(symbol)
-            print("fetch_price_by_volume")
-            m = safe_fetch_margin_data(symbol)
-            print("safe_fetch_margin_data")
-            o = fetch_ohlc_data(symbol)
-            print("fetch_ohlc_data")
-
-            # 比對日期
-            if p['date'] == m['date'] == o['date']:
-                update_excel_cloud(symbol, name, p["data"], m, o)
-                time.sleep(random.uniform(0.8, 1.2))
-            else:
-                print(f"⚠️ {symbol} 日期不一致，跳過更新 (p:{p['date']}, m:{m['date']}, o:{o['date']})")
-                
-        except Exception as e:
-            print(f"❌ {symbol} 失敗: {e}")
+        retry_count = 0
+        max_retries = 12  # 最多重試 3 次
+        success = False
+            
+        while retry_count <= max_retries:
+            try:
+                print(f"\n📈 處理 {symbol} {name} (嘗試次數: {retry_count + 1})")
+                p = fetch_price_by_volume(symbol)
+                m = safe_fetch_margin_data(symbol)
+                o = fetch_ohlc_data(symbol)
+    
+                # 比對日期
+                if p['date'] == m['date'] == o['date']:
+                    update_excel_cloud(symbol, name, p["data"], m, o)
+                    time.sleep(random.uniform(1.0, 2.0))
+                    success = True
+                    break
+                else:
+                    #print(f"⚠️ {symbol} 日期不一致，跳過更新 (p:{p['date']}, m:{m['date']}, o:{o['date']})")
+                    retry_count += 1
+                    if retry_count <= max_retries:
+                        print(f"⏳ {symbol} 日期不一致 (p:{p['date']}, m:{m['date']}, o:{o['date']})，"
+                              f"第 {retry_count} 次重試，等待 300 秒...")
+                        time.sleep(300) # 等待 Yahoo 更新
+                    else:
+                        print(f"❌ {symbol} 達到重試上限，跳過更新。")
+                        break
+            except (json.JSONDecodeError, ValueError, requests.exceptions.RequestException) as e:
+                    # --- 被擋 IP 或網路錯誤情境 (你圖中 line 1 column 1 的錯誤) ---
+                    if retry_count < max_retries:
+                        # 被擋時採取「指數型等待」，第一次 60s, 第二次 120s...
+                        wait_time = (retry_count + 1) * 60 + random.randint(1, 15)
+                        print(f"⚠️ {symbol} 抓取遭拒或格式錯誤: {e}")
+                        print(f"🛑 觸發冷卻機制，等待 {wait_time} 秒後重試...")
+                        time.sleep(wait_time)
+                        retry_count += 1
+                    else:
+                        print(f"❌ {symbol} 連續失敗，放棄處理。")
+                        break
+            except Exception as e:
+                print(f"❌ {symbol} 失敗: {e}")
+                break
 
 if __name__ == "__main__":
     main()
