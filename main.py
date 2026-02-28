@@ -463,7 +463,7 @@ def main():
                     # --- 被擋 IP 或網路錯誤情境 (你圖中 line 1 column 1 的錯誤) ---
                     if retry_count < max_retries:
                         # 被擋時採取「指數型等待」，第一次 60s, 第二次 120s...
-                        wait_time = (retry_count + 1) * 60 + random.randint(1, 15)
+                        wait_time = (retry_count + 5) * 60 + random.randint(1, 15)
                         print(f"⚠️ {symbol} 抓取遭拒或格式錯誤: {e}")
                         print(f"🛑 觸發冷卻機制，等待 {wait_time} 秒後重試...")
                         time.sleep(wait_time)
