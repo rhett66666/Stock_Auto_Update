@@ -424,8 +424,8 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
 def main():
 #    perform_backup()
     stocks = get_all_taiwan_stocks()
-#    for symbol, name in list(stocks.items()):
-    for symbol, name in list(stocks.items())[:5]:  # 測試先跑前5檔
+    for symbol, name in list(stocks.items()):
+#    for symbol, name in list(stocks.items())[:5]:  # 測試先跑前5檔
         retry_count = 0
         max_retries = 12  # 最多重試 3 次
         success = False
