@@ -424,12 +424,16 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
 def main():
 #    perform_backup()
     stocks = get_all_taiwan_stocks()
-    for symbol, name in list(stocks.items()):
+#    for symbol, name in list(stocks.items()):
+    for symbol, name in list(stocks.items())[:5]:  # 測試先跑前5檔
         try:
             print(f"\n📈 處理 {symbol} {name}")
             p = fetch_price_by_volume(symbol)
+            print("fetch_price_by_volume")
             m = safe_fetch_margin_data(symbol)
+            print("safe_fetch_margin_data")
             o = fetch_ohlc_data(symbol)
+            print("fetch_ohlc_data")
 
             # 比對日期
             if p['date'] == m['date'] == o['date']:
