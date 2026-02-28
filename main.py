@@ -379,6 +379,7 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
     today_p_list = [p for p, _ in price_data]
     all_prices = sorted(set(existing_prices.keys()) | set(today_p_list), reverse=True)
 
+    print("3.6") ############
     new_map = {}
     for i, price in enumerate(all_prices):
         row = i + 13
