@@ -372,42 +372,89 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
     ws.cell(row=9, column=today_col, value=ohlc_data["低"])
     ws.cell(row=10, column=today_col, value=ohlc_data["收"])
 
-    existing_prices = {float(ws.cell(row=r, column=1).value): r for r in range(13, ws.max_row + 1) if ws.cell(row=r, column=1).value}
-    today_p_list = [p for p, _ in price_data]
-    all_prices = sorted(set(existing_prices.keys()) | set(today_p_list), reverse=True)
+    # 價量更新
+    existing_prices = {}
+    for r in range(13, ws.max_row + 1):
+        price = ws.cell(row=r, column=1).value
+        if price:
+            existing_prices[float(price)] = r
 
+    today_prices = [p for p, _ in price_data]
+    all_prices = sorted(set(existing_prices.keys()) | set(today_prices), reverse=True)
+
+    current_row = 13
     new_map = {}
-    for i, price in enumerate(all_prices):
-        row = i + 13
+    for price in all_prices:
         if price not in existing_prices:
-            ws.insert_rows(row)
-            ws.cell(row=row, column=1, value=price)
-            ws.cell(row=row, column=2, value=0)
-        new_map[price] = row
+            ws.insert_rows(current_row)
+            ws.cell(row=current_row, column=1, value=price)
+            ws.cell(row=current_row, column=2, value=0)
+        new_map[price] = current_row
+        current_row += 1
 
     for price, vol in price_data:
         ws.cell(row=new_map[price], column=today_col, value=vol)
 
-    # 著色邏輯 (簡單版 Heatmap)
-    fill_none = PatternFill(fill_type=None)
-    fill_top_5 = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
-    fill_close = PatternFill(start_color="00FFFF", end_color="00FFFF", fill_type="solid")
+    for price in all_prices:
+        row = new_map[price]
+        total = 0
+        for c in range(3, ws.max_column + 1):
+            val = ws.cell(row=row, column=c).value
+            total += val if isinstance(val, (int, float)) else 0
+        ws.cell(row=row, column=2, value=total)
 
-    for r in range(13, ws.max_row + 1):
+    # D. 著色邏輯 (完全同步 Local 版)
+    fill_row_top_1_5 = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+    fill_row_top_6_10 = PatternFill(start_color="FFFFCC", end_color="FFFFCC", fill_type="solid")
+    fill_row_top_11_20 = PatternFill(start_color="E0FFE0", end_color="E0FFE0", fill_type="solid")
+    fill_cell_top_1_5 = PatternFill(start_color="FF7F50", end_color="FF7F50", fill_type="solid")
+    fill_cell_top_6_10 = PatternFill(start_color="FFD700", end_color="FFD700", fill_type="solid")
+    fill_close_price = PatternFill(start_color="00FFFF", end_color="00FFFF", fill_type="solid")
+    fill_open_price = PatternFill(start_color="FF00FF", end_color="FF00FF", fill_type="solid")
+    fill_none = PatternFill(fill_type=None)
+
+    start_data_row = 13
+    end_data_row = ws.max_row
+    avg_volume_list = []
+    raw_volume_list = []
+
+    for r in range(start_data_row, end_data_row + 1):
+        # 清除舊色
         for c in range(1, ws.max_column + 1):
             ws.cell(row=r, column=c).fill = fill_none
-        total = sum((ws.cell(row=r, column=c).value or 0) for c in range(3, ws.max_column + 1))
-        ws.cell(row=r, column=2, value=total)
+        
+        raw_val = ws.cell(row=r, column=2).value or 0
+        raw_volume_list.append((r, raw_val))
 
-    # 標記成交量前 5
-    sorted_rows = sorted(new_map.values(), key=lambda r: (ws.cell(row=r, column=2).value or 0), reverse=True)
-    for r in sorted_rows[:5]:
+        window_start = max(start_data_row, r - 2)
+        window_end = min(end_data_row, r + 2)
+        window_values = [ws.cell(row=wr, column=2).value or 0 for wr in range(window_start, window_end + 1)]
+        avg_val = sum(window_values) / len(window_values) if window_values else 0
+        avg_volume_list.append((r, avg_val))
+
+    # 第一階段：平均值上色 (整列)
+    avg_volume_list.sort(key=lambda x: x[1], reverse=True)
+    for i in range(min(20, len(avg_volume_list))):
+        target_row = avg_volume_list[i][0]
+        if i < 5: fill = fill_row_top_1_5
+        elif i < 10: fill = fill_row_top_6_10
+        else: fill = fill_row_top_11_20
         for c in range(1, ws.max_column + 1):
-            ws.cell(row=r, column=c).fill = fill_top_5
+            ws.cell(row=target_row, column=c).fill = fill
 
-    # 標記今日收盤價
-    if float(ohlc_data["收"]) in new_map:
-        ws.cell(row=new_map[float(ohlc_data["收"])], column=1).fill = fill_close
+    # 第二階段：原始值上色 (B欄強化)
+    raw_volume_list.sort(key=lambda x: x[1], reverse=True)
+    for i in range(min(10, len(raw_volume_list))):
+        target_row = raw_volume_list[i][0]
+        ws.cell(row=target_row, column=2).fill = fill_cell_top_1_5 if i < 5 else fill_cell_top_6_10
+
+    # 第三階段：開收盤價 (A欄)
+    close_price = float(ohlc_data["收"])
+    open_price = float(ohlc_data["開"])
+    if open_price in new_map:
+        ws.cell(row=new_map[open_price], column=1).fill = fill_open_price
+    if close_price in new_map:
+        ws.cell(row=new_map[close_price], column=1).fill = fill_close_price
 
     wb.save(local_path)
 
