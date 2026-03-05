@@ -7,6 +7,7 @@ import shutil
 import random
 import warnings
 import json
+import sqlite3
 from datetime import datetime
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import PatternFill
@@ -25,13 +26,14 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 creds = service_account.Credentials.from_service_account_info(SERVICE_ACCOUNT_INFO, scopes=SCOPES)
 drive_service = build('drive', 'v3', credentials=creds)
 
-# 【請務必修改這裡的 ID】
-# 請進入雲端資料夾後，從網址列最後一段取得那一串亂碼
+# 雲端資料夾 ID
 BASE_DIR_ID = "1WE_tmOMxh9zffOVau4lAFOTnWDWFy_wJ"
 BACKUP_DIR_ID = "11YNuJdVqUkAJTDhN4ASIkrxGDK3_PDUO"
 
 # GitHub Actions 虛擬機內的臨時資料夾
 LOCAL_TEMP = "./temp_stock"
+DB_FILE_NAME = "all_stocks_data.db"
+LOCAL_DB_PATH = os.path.join(LOCAL_TEMP, DB_FILE_NAME)
 if not os.path.exists(LOCAL_TEMP):
     os.makedirs(LOCAL_TEMP)
 
@@ -40,55 +42,36 @@ session.headers.update({
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 })
 
-# === 2. 備份功能 (雲端 API 複製版) ===
-def perform_backup():
-    today_str = datetime.now().strftime("%Y%m%d")
-    print(f"📦 準備備份雲端資料至 {today_str} (改用上傳模式以避開空間限制)...")
+# === 2. 雲端 DB 同步工具 ===
+def sync_db_from_cloud():
+    """從雲端下載資料庫檔案到 GitHub 虛擬機"""
+    query = f"name = '{DB_FILE_NAME}' and '{BASE_DIR_ID}' in parents and trashed = false"
+    results = drive_service.files().list(q=query, fields="files(id)").execute()
+    items = results.get('files', [])
+    if items:
+        file_id = items[0]['id']
+        print(f"📥 正在從雲端下載資料庫 (ID: {file_id})...")
+        request = drive_service.files().get_media(fileId=file_id)
+        with io.FileIO(LOCAL_DB_PATH, 'wb') as fh:
+            downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while not done:
+                _, done = downloader.next_chunk()
+        return file_id
+    print("ℹ️ 雲端尚無資料庫檔案，稍後將建立新檔。")
+    return None
 
-    # 1. 建立日期子資料夾
-    folder_metadata = {
-        'name': today_str,
-        'mimeType': 'application/vnd.google-apps.folder',
-        'parents': [BACKUP_DIR_ID]
-    }
-    folder = drive_service.files().create(body=folder_metadata, fields='id').execute()
-    new_folder_id = folder.get('id')
-
-    # 2. 搜尋來源檔案
-    query = f"'{BASE_DIR_ID}' in parents and name contains '_價量報表.xlsx' and trashed = false"
-    results = drive_service.files().list(q=query, fields="files(id, name)").execute()
-    files = results.get('files', [])
-
-    # 3. 改用「下載再上傳」的方式備份
-    # 這樣檔案的 Owner 就會是你，而不是 Service Account
-    for f in files:
-        try:
-            temp_bk_path = os.path.join(LOCAL_TEMP, f"bk_{f['name']}")
-            
-            # A. 下載
-            request = drive_service.files().get_media(fileId=f['id'])
-            with io.FileIO(temp_bk_path, 'wb') as fh:
-                downloader = MediaIoBaseDownload(fh, request)
-                done = False
-                while not done:
-                    _, done = downloader.next_chunk()
-            
-            # B. 上傳到備份資料夾
-            media = MediaFileUpload(temp_bk_path, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-            drive_service.files().create(
-                body={'name': f['name'], 'parents': [new_folder_id]},
-                media_body=media
-            ).execute()
-            
-            # C. 刪除暫存檔
-            if os.path.exists(temp_bk_path):
-                os.remove(temp_bk_path)
-                
-        except Exception as e:
-            print(f"⚠️ 檔案 {f['name']} 備份失敗: {e}")
-
-    print(f"✅ 雲端備份完成！")
-
+def sync_db_to_cloud(existing_id=None):
+    """將本地更新後的資料庫上傳覆蓋雲端"""
+    print(f"📤 正在將資料庫同步至雲端...")
+    media = MediaFileUpload(LOCAL_DB_PATH, mimetype='application/x-sqlite3')
+    if existing_id:
+        drive_service.files().update(fileId=existing_id, media_body=media).execute()
+    else:
+        file_metadata = {'name': DB_FILE_NAME, 'parents': [BASE_DIR_ID]}
+        drive_service.files().create(body=file_metadata, media_body=media).execute()
+    print("✅ 資料庫雲端同步完成！")
+    
 # === 3. 股票抓取功能 ===
 def get_all_taiwan_stocks():
     def get_stocks(mode):
@@ -321,7 +304,7 @@ def fetch_ohlc_data(symbol="2330.TW"):
     }
 
 # === 4. Excel 處理邏輯 (雲端同步版) ===
-def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
+def update_excel_and_db_cloud(symbol, name, price_data, margin_data, ohlc_data):
     file_name = f"{symbol}_價量報表.xlsx"
     local_path = os.path.join(LOCAL_TEMP, file_name)
     today = margin_data["date"]
@@ -466,10 +449,58 @@ def update_excel_cloud(symbol, name, price_data, margin_data, ohlc_data):
         file_metadata = {'name': file_name, 'parents': [BASE_DIR_ID]}
         drive_service.files().create(body=file_metadata, media_body=media).execute()
     print(f"✅ 已同步雲端: {file_name}")
+    # --- Part B: SQLite 資料庫維護 ---
+    conn = sqlite3.connect(LOCAL_DB_PATH)
+    cursor = conn.cursor()
+    try:
+        # 1. 每日信用交易
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_credit_trading (
+                stock_id TEXT, trade_date TEXT, 
+                margin_balance INTEGER, margin_change INTEGER, 
+                short_balance INTEGER, short_change INTEGER,
+                PRIMARY KEY (stock_id, trade_date)
+            )
+        """)
+        cursor.execute("INSERT OR REPLACE INTO daily_credit_trading VALUES (?,?,?,?,?,?)", (
+            symbol, today, margin_data["融資"], margin_data.get("融資差", 0), 
+            margin_data["融券"], margin_data.get("融券差", 0)
+        ))
+
+        # 2. 每日開高低收
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_stock_prices (
+                stock_id TEXT, trade_date TEXT, 
+                open_price REAL, high_price REAL, low_price REAL, close_price REAL,
+                PRIMARY KEY (stock_id, trade_date)
+            )
+        """)
+        cursor.execute("INSERT OR REPLACE INTO daily_stock_prices VALUES (?,?,?,?,?,?)", (
+            symbol, today, ohlc_data["開"], ohlc_data["高"], ohlc_data["低"], ohlc_data["收"]
+        ))
+
+        # 3. 每日價格成交分佈
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_price_volume_distribution (
+                stock_id TEXT, trade_date TEXT, price REAL, volume INTEGER,
+                PRIMARY KEY (stock_id, trade_date, price)
+            )
+        """)
+        for p, v in price_data:
+            cursor.execute("INSERT OR REPLACE INTO daily_price_volume_distribution VALUES (?,?,?,?)", 
+                           (symbol, today, p, v))
+        conn.commit()
+    except Exception as e:
+        print(f"❌ DB 更新失敗 {symbol}: {e}")
+    finally:
+        conn.close()
+    print(f"✅ 已同步雲端 Excel 與 DB: {symbol}")
 
 # === 5. 主程式 ===
 def main():
-#    perform_backup()
+    # 步驟 1: 下載雲端現有資料庫
+    db_cloud_id = sync_db_from_cloud()
+    
     stocks = get_all_taiwan_stocks()
     for symbol, name in list(stocks.items()):
 #    for symbol, name in list(stocks.items())[:5]:  # 測試先跑前5檔
@@ -486,7 +517,7 @@ def main():
     
                 # 比對日期
                 if p['date'] == m['date'] == o['date']:
-                    update_excel_cloud(symbol, name, p["data"], m, o)
+                    update_excel_and_db_cloud(symbol, name, p["data"], m, o)
                     time.sleep(random.uniform(1.0, 2.0))
                     success = True
                     break
@@ -516,5 +547,14 @@ def main():
                 print(f"❌ {symbol} 失敗: {e}")
                 break
 
+    # 步驟 2: 建立索引並上傳 DB
+    if os.path.exists(LOCAL_DB_PATH):
+        conn = sqlite3.connect(LOCAL_DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_credit ON daily_credit_trading (stock_id, trade_date);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_prices ON daily_stock_prices (stock_id, trade_date);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_dist ON daily_price_volume_distribution (stock_id, trade_date, price);")
+        conn.close()
+        sync_db_to_cloud(db_cloud_id)
 if __name__ == "__main__":
     main()
