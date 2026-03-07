@@ -1,0 +1,16 @@
+# 忽略 Python 自動產生的暫存檔
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 忽略你的股票暫存資料夾 (包含 Excel 和 DB)
+temp_stock/
+*.xlsx
+*.db
+
+# 忽略所有 JSON 檔案 (防止誤傳 GCP 金鑰)
+*.json
+
+# 忽略虛擬環境
+venv/
+.env
