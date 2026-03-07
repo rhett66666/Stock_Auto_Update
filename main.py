@@ -517,22 +517,17 @@ def update_excel_and_db_cloud(symbol, name, price_data, margin_data, ohlc_data):
         print(f"❌ DB 更新失敗 {symbol}: {e}")
     finally:
         conn.close()
-    print(f"✅ 已同步雲端 Excel 與 DB: {symbol}")
+    print(f"✅ 已同步雲端 Excel: {symbol}")
 
 # === 5. 主程式 ===
 def main():
     # 步驟 1: 下載雲端現有資料庫
-    print("Start sync_db_from_cloud")
     db_cloud_id = sync_db_from_cloud()
-    print(f"✅ sync_db_from_cloud complete")
-
-    print("Start get_all_taiwan_stocks")
     stocks = get_all_taiwan_stocks()
-    print(f"✅ get_all_taiwan_stocks complete")
     for symbol, name in list(stocks.items()):
 #    for symbol, name in list(stocks.items())[:5]:  # 測試先跑前5檔
         retry_count = 0
-        max_retries = 12  # 最多重試 3 次
+        max_retries = 24  # 最多重試 3 次
         success = False
             
         while retry_count <= max_retries:
@@ -552,14 +547,17 @@ def main():
                     break
                 else:
                     #print(f"⚠️ {symbol} 日期不一致，跳過更新 (p:{p['date']}, m:{m['date']}, o:{o['date']})")
-                    retry_count += 1
-                    if retry_count <= max_retries:
-                        print(f"⏳ {symbol} 日期不一致 (p:{p['date']}, m:{m['date']}, o:{o['date']})，"
-                              f"第 {retry_count} 次重試，等待 300 秒...")
-                        time.sleep(300) # 等待 Yahoo 更新
-                    else:
-                        print(f"❌ {symbol} 達到重試上限，跳過更新。")
-                        break
+                    if symbol == "1101"  #第一檔，1101台泥，必定有成交量
+                        retry_count += 1
+                        if retry_count <= max_retries:
+                            print(f"⏳ {symbol} 日期不一致 (p:{p['date']}, m:{m['date']}, o:{o['date']})，"
+                                  f"第 {retry_count} 次重試，等待 300 秒...")
+                            time.sleep(300) # 等待 Yahoo 更新
+                        else:
+                            print(f"❌ {symbol} 達到重試上限，跳過更新。")
+                            break
+                    else
+                        print(f"⏳ {symbol} 日期不一致 (p:{p['date']}, m:{m['date']}, o:{o['date']})")
             except (json.JSONDecodeError, ValueError, requests.exceptions.RequestException) as e:
                     # --- 被擋 IP 或網路錯誤情境 (你圖中 line 1 column 1 的錯誤) ---
                     if retry_count < max_retries:
@@ -586,5 +584,6 @@ def main():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_dist ON daily_price_volume_distribution (stock_id, trade_date, price);")
         conn.close()
         sync_db_to_cloud(db_cloud_id)
+        print(f"✅ 已同步雲端 DB")
 if __name__ == "__main__":
     main()
