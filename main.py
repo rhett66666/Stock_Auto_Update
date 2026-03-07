@@ -517,7 +517,6 @@ def update_excel_and_db_cloud(symbol, name, price_data, margin_data, ohlc_data):
         print(f"❌ DB 更新失敗 {symbol}: {e}")
     finally:
         conn.close()
-    print(f"✅ 已同步雲端 Excel: {symbol}")
 
 # === 5. 主程式 ===
 def main():
