@@ -540,7 +540,7 @@ def main():
                 o = fetch_ohlc_data(symbol)
     
                 # 比對日期
-                if p['date'] == m['date'] == o['date']:
+                if p['date'] == o['date'] >= m['date']:  #價量可能沒資料(default今日)
                     update_excel_and_db_cloud(symbol, name, p["data"], m, o)
                     time.sleep(random.uniform(1.0, 2.0))
                     success = True
@@ -558,6 +558,7 @@ def main():
                             break
                     else:
                         print(f"⏳ {symbol} 日期不一致 (p:{p['date']}, m:{m['date']}, o:{o['date']})")
+                        break
             except (json.JSONDecodeError, ValueError, requests.exceptions.RequestException) as e:
                     # --- 被擋 IP 或網路錯誤情境 (你圖中 line 1 column 1 的錯誤) ---
                     if retry_count < max_retries:
