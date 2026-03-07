@@ -547,7 +547,7 @@ def main():
                     break
                 else:
                     #print(f"⚠️ {symbol} 日期不一致，跳過更新 (p:{p['date']}, m:{m['date']}, o:{o['date']})")
-                    if symbol == "1101"  #第一檔，1101台泥，必定有成交量
+                    if symbol == "1101":  #第一檔，1101台泥，必定有成交量
                         retry_count += 1
                         if retry_count <= max_retries:
                             print(f"⏳ {symbol} 日期不一致 (p:{p['date']}, m:{m['date']}, o:{o['date']})，"
