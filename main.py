@@ -95,6 +95,12 @@ def fetch_price_by_volume(symbol="2330.TW"):
     res.raise_for_status()
     js = res.json()
 
+    # 判斷 pagination 裡面的 resultsTotal 是否為 0
+    pagination = js.get('data', {}).get('pagination', {}) or js.get('pagination', {})
+    if pagination.get('resultsTotal') == 0:
+        print(f"ℹ️ {symbol} Yahoo 查無價量分佈資料 (resultsTotal: 0)")
+        return {"date": None, "data": []} # 回傳空的 data
+
     # --------------------------
     #  1️⃣ 找 priceByVolumes
     # --------------------------
@@ -114,6 +120,13 @@ def fetch_price_by_volume(symbol="2330.TW"):
         except (KeyError, TypeError):
             continue
 
+    if data == []:
+        # 檢查 pagination 確認是否真的沒成交
+        pagination = js.get('data', {}).get('pagination', {}) or js.get('pagination', {})
+        if pagination.get('resultsTotal') == 0:
+            print(f"ℹ️ {symbol} 正常回傳：今日無成交價量分佈 (resultsTotal: 0)")
+            return {"date": None, "data": []}
+            
     if not data:
         print("⚠️ 無法從 Yahoo 回傳中找到 priceByVolumes，實際回傳內容：")
         print(js)
@@ -203,13 +216,23 @@ def safe_fetch_margin_data(symbol, prev_margin_data=None):
     嘗試安全抓取 margin data；若失敗，回傳預設值。
     prev_margin_data: 昨日資料（若要計算融資差與融券差）
     """
+    def safe_int(value):
+        if value is None:
+            return 0
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return 0
+            
     try:
         margin = fetch_margin_data(symbol)
 
         # 若有前一日資料，計算變化量
         if prev_margin_data:
-            margin["融資差"] = margin["融資"] - prev_margin_data.get("融資", 0)
-            margin["融券差"] = margin["融券"] - prev_margin_data.get("融券", 0)
+            prev_fin = safe_int(prev_margin_data.get("融資"))
+            prev_short = safe_int(prev_margin_data.get("融券"))
+            margin["融資差"] = margin["融資"] - prev_fin
+            margin["融券差"] = margin["融券"] - prev_short
         else:
             margin["融資差"] = 0
             margin["融券差"] = 0
@@ -512,6 +535,8 @@ def main():
             try:
                 print(f"\n📈 處理 {symbol} {name} (嘗試次數: {retry_count + 1})")
                 p = fetch_price_by_volume(symbol)
+                if not p['data']: # 如果是 []
+                    break
                 m = safe_fetch_margin_data(symbol)
                 o = fetch_ohlc_data(symbol)
     
@@ -535,7 +560,8 @@ def main():
                     # --- 被擋 IP 或網路錯誤情境 (你圖中 line 1 column 1 的錯誤) ---
                     if retry_count < max_retries:
                         # 被擋時採取「指數型等待」，第一次 60s, 第二次 120s...
-                        wait_time = (retry_count + 5) * 60 + random.randint(1, 15)
+                        #wait_time = (retry_count + 5) * 60 + random.randint(1, 15)
+                        wait_time = 300
                         print(f"⚠️ {symbol} 抓取遭拒或格式錯誤: {e}")
                         print(f"🛑 觸發冷卻機制，等待 {wait_time} 秒後重試...")
                         time.sleep(wait_time)
