@@ -556,7 +556,7 @@ def main():
                         else:
                             print(f"❌ {symbol} 達到重試上限，跳過更新。")
                             break
-                    else
+                    else:
                         print(f"⏳ {symbol} 日期不一致 (p:{p['date']}, m:{m['date']}, o:{o['date']})")
             except (json.JSONDecodeError, ValueError, requests.exceptions.RequestException) as e:
                     # --- 被擋 IP 或網路錯誤情境 (你圖中 line 1 column 1 的錯誤) ---
