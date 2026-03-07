@@ -18,4 +18,4 @@ jobs:
       - name: Run script
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
-        run: python main.py
+        run: python -u main.py
