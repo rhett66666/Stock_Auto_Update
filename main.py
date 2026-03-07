@@ -522,9 +522,13 @@ def update_excel_and_db_cloud(symbol, name, price_data, margin_data, ohlc_data):
 # === 5. 主程式 ===
 def main():
     # 步驟 1: 下載雲端現有資料庫
+    print("Start sync_db_from_cloud")
     db_cloud_id = sync_db_from_cloud()
-    
+    print(f"✅ sync_db_from_cloud complete")
+
+    print("Start get_all_taiwan_stocks")
     stocks = get_all_taiwan_stocks()
+    print(f"✅ get_all_taiwan_stocks complete")
     for symbol, name in list(stocks.items()):
 #    for symbol, name in list(stocks.items())[:5]:  # 測試先跑前5檔
         retry_count = 0
