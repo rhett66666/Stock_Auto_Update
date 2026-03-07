@@ -17,6 +17,9 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
+import functools
+print = functools.partial(print, flush=True)
+
 warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 # === 1. 權限與路徑設定 ===
@@ -587,4 +590,5 @@ def main():
         conn.close()
         sync_db_to_cloud(db_cloud_id)
 if __name__ == "__main__":
+    print("🚩 進入 __main__ 區塊")
     main()
