@@ -2,6 +2,8 @@ name: Stock Auto Update
 on:
   schedule:
     - cron: '53 12 * * 1-5' # 台北時間週一至週五 20:53 執行
+  repository_dispatch:
+    types: [manual_trigger]
   workflow_dispatch: # 也可以手動點擊執行
 
 jobs:
