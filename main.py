@@ -541,7 +541,7 @@ def main():
                 # 比對日期
                 if p['date'] == o['date'] >= m['date']:  #價量可能沒資料(default今日)
                     update_excel_and_db_cloud(symbol, name, p["data"], m, o)
-                    time.sleep(random.uniform(1.0, 2.0))
+                    time.sleep(1)
                     success = True
                     break
                 else:
