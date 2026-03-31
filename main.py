@@ -63,15 +63,30 @@ def sync_db_from_cloud():
 
 def sync_db_to_cloud(existing_id=None):
     """將本地更新後的資料庫上傳覆蓋雲端"""
-    print(f"📤 正在將資料庫同步至雲端...")
-    media = MediaFileUpload(LOCAL_DB_PATH, mimetype='application/x-sqlite3')
-    if existing_id:
-        drive_service.files().update(fileId=existing_id, media_body=media).execute()
-    else:
-        file_metadata = {'name': DB_FILE_NAME, 'parents': [BASE_DIR_ID]}
-        drive_service.files().create(body=file_metadata, media_body=media).execute()
-    print("✅ 資料庫雲端同步完成！")
-    
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            print(f"📤 正在將資料庫同步至雲端... (嘗試 {attempt + 1}/{max_retries})")
+            media = MediaFileUpload(LOCAL_DB_PATH, mimetype='application/x-sqlite3', resumable=True)
+            if existing_id:
+                drive_service.files().update(fileId=existing_id, media_body=media).execute()
+            else:
+                file_metadata = {'name': DB_FILE_NAME, 'parents': [BASE_DIR_ID]}
+                drive_service.files().create(body=file_metadata, media_body=media).execute()
+                
+            print("✅ 資料庫雲端同步完成！")
+            return  # 成功後直接退出函數
+
+        except Exception as e:
+            print(f"⚠️ 同步失敗 (嘗試 {attempt + 1}): {e}")
+            if attempt < max_retries - 1:
+                wait_time = 5 * (attempt + 1)
+                print(f"等待 {wait_time} 秒後重試...")
+                time.sleep(wait_time)
+            else:
+                print("❌ 已達到最大重試次數，同步失敗。")
+                raise # 最後一次失敗則報錯讓 Actions 知道
+
 # === 3. 股票抓取功能 ===
 def get_all_taiwan_stocks():
     def get_stocks(mode):
